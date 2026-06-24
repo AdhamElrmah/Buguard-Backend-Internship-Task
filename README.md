@@ -23,8 +23,8 @@ A self-contained Asset Management module for the DarkAtlas Attack Surface Monito
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/YOUR_USERNAME/darkatlas-asset-management.git
-cd darkatlas-asset-management
+git clone https://github.com/YOUR_USERNAME/Buguard-Backend-Internship-Task.git
+cd Buguard-Backend-Internship-Task
 
 # 2. Create and activate virtual environment
 python -m venv venv
@@ -75,11 +75,11 @@ tests/               # Automated tests
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
+| Variable       | Description                  | Default                                                           |
+| -------------- | ---------------------------- | ----------------------------------------------------------------- |
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql+asyncpg://postgres:postgres@localhost:5432/darkatlas` |
-| `API_KEY` | API key for write operations | `changeme` |
-| `DEBUG` | Enable debug mode | `false` |
+| `API_KEY`      | API key for write operations | `changeme`                                                        |
+| `DEBUG`        | Enable debug mode            | `false`                                                           |
 
 ## License
 
