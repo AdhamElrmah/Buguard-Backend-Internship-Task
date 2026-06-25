@@ -67,27 +67,77 @@ class AssetRepository:
         session: AsyncSession,
         skip: int = 0,
         limit: int = 20,
+        filters: "AssetFilters | None" = None,
     ) -> tuple[list[Asset], int]:
         """
-        Fetch a paginated list of assets with total count.
+        Fetch a paginated, filtered, sorted list of assets with total count.
 
-        Returns a tuple of (assets, total_count) so the router can
-        build a paginated response. Filtering and sorting will be
-        added in Milestone 5.
+        Builds a dynamic query based on the provided filters:
+        - type: exact match on asset type
+        - status: exact match on lifecycle status
+        - tag: array containment — does the tags array include this value?
+        - value: case-insensitive substring search (ILIKE)
+        - sort_by / sort_order: ORDER BY clause
+        - skip / limit: OFFSET / LIMIT for pagination
 
-        Why two queries?
-        - The data query uses OFFSET/LIMIT for pagination
-        - The count query gets the total (ignoring pagination)
-        The client needs both: the page of data AND the total to
-        calculate how many pages exist.
+        Returns (assets, total_count). The total reflects the filtered
+        count (not the entire table), so pagination math is correct.
         """
-        # Data query
-        data_query = select(Asset).offset(skip).limit(limit)
+        from app.schemas.filters import AssetFilters  # avoid circular import
+
+        # Start with a base query that selects all assets
+        data_query = select(Asset)
+        count_query = select(func.count()).select_from(Asset)
+
+        # --- Apply filters ---
+        # Each filter is optional. When present, it adds a WHERE clause.
+        # Multiple filters combine with AND (each .where() call adds AND).
+        if filters:
+            if filters.type:
+                data_query = data_query.where(Asset.type == filters.type)
+                count_query = count_query.where(Asset.type == filters.type)
+
+            if filters.status:
+                data_query = data_query.where(Asset.status == filters.status)
+                count_query = count_query.where(Asset.status == filters.status)
+
+            if filters.tag:
+                # PostgreSQL array containment: tags @> ARRAY['prod']
+                # This checks if the tags column contains the given value.
+                # The GIN index (idx_assets_tags) makes this fast.
+                data_query = data_query.where(
+                    Asset.tags.contains([filters.tag])
+                )
+                count_query = count_query.where(
+                    Asset.tags.contains([filters.tag])
+                )
+
+            if filters.value:
+                # ILIKE = case-insensitive LIKE
+                # f"%{value}%" = substring match (contains)
+                data_query = data_query.where(
+                    Asset.value.ilike(f"%{filters.value}%")
+                )
+                count_query = count_query.where(
+                    Asset.value.ilike(f"%{filters.value}%")
+                )
+
+            # --- Apply sorting ---
+            # getattr(Asset, "created_at") returns the SQLAlchemy column object.
+            # .asc() or .desc() sets the sort direction.
+            sort_column = getattr(Asset, filters.sort_by.value)
+            if filters.sort_order.value == "desc":
+                data_query = data_query.order_by(sort_column.desc())
+            else:
+                data_query = data_query.order_by(sort_column.asc())
+
+        # --- Apply pagination ---
+        data_query = data_query.offset(skip).limit(limit)
+
+        # Execute both queries
         result = await session.execute(data_query)
         assets = list(result.scalars().all())
 
-        # Count query
-        count_query = select(func.count()).select_from(Asset)
         total = await session.scalar(count_query)
 
         return assets, total

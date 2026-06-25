@@ -89,25 +89,27 @@ class AssetService:
     async def list_assets(
         self,
         session: AsyncSession,
-        page: int = 1,
-        page_size: int = 20,
+        filters: "AssetFilters",
     ) -> AssetListResponse:
         """
-        List assets with pagination.
+        List assets with filtering, sorting, and pagination.
 
-        Converts page/page_size to skip/limit for the repository.
-        Filtering and sorting will be added in Milestone 5.
+        The filters object contains all query parameters (type, status,
+        tag, value, sort_by, sort_order, page, page_size). The service
+        extracts pagination values and passes everything to the repository.
         """
-        skip = (page - 1) * page_size
+        from app.schemas.filters import AssetFilters  # avoid circular import
+
+        skip = (filters.page - 1) * filters.page_size
         assets, total = await self.repo.get_all(
-            session, skip=skip, limit=page_size
+            session, skip=skip, limit=filters.page_size, filters=filters
         )
 
         return AssetListResponse(
             items=[AssetResponse.model_validate(a) for a in assets],
             total=total,
-            page=page,
-            page_size=page_size,
+            page=filters.page,
+            page_size=filters.page_size,
         )
 
     async def update_asset(

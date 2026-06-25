@@ -31,6 +31,7 @@ from app.schemas.asset import (
     AssetResponse,
     AssetUpdate,
 )
+from app.schemas.filters import AssetFilters
 from app.services.asset_service import asset_service
 
 # Create a router with a prefix and tag.
@@ -85,23 +86,25 @@ async def get_asset(
     "",
     response_model=AssetListResponse,
     summary="List all assets",
-    description="Returns a paginated list of assets. Filtering and sorting added in Milestone 5.",
+    description="Returns a paginated list of assets with optional filtering, sorting, and pagination.",
 )
 async def list_assets(
-    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
-    page_size: int = Query(20, ge=1, le=100, description="Items per page (max 100)"),
+    filters: AssetFilters = Depends(),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    GET /api/v1/assets?page=1&page_size=20
+    GET /api/v1/assets?type=domain&status=active&tag=prod&sort_by=created_at&sort_order=desc&page=1&page_size=20
 
-    Query parameters:
-    - page: which page to return (1-indexed, not 0-indexed, because
-      that's what humans expect)
-    - page_size: how many items per page (capped at 100 to prevent
-      clients from requesting the entire database)
+    All query parameters are optional. When omitted, defaults apply:
+    - No filters (returns all assets)
+    - sort_by=created_at, sort_order=desc (newest first)
+    - page=1, page_size=20
+
+    Using Depends(AssetFilters) tells FastAPI to create an AssetFilters
+    instance from the query parameters. Each field in AssetFilters becomes
+    a separate query parameter in the Swagger UI.
     """
-    return await asset_service.list_assets(db, page=page, page_size=page_size)
+    return await asset_service.list_assets(db, filters=filters)
 
 
 @router.put(
