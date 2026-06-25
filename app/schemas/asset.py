@@ -152,7 +152,7 @@ class AssetResponse(BaseModel):
     status: AssetStatus
     source: AssetSource
     tags: list[str]
-    metadata: dict[str, Any] = Field(alias="metadata_")
+    metadata: dict[str, Any] = Field(validation_alias="metadata_")
     first_seen: datetime
     last_seen: datetime
     created_at: datetime
