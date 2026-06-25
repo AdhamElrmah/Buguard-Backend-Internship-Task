@@ -26,6 +26,7 @@ from app.schemas.asset import (
     AssetResponse,
     AssetUpdate,
 )
+from app.schemas.bulk import BulkImportError, BulkImportResponse
 
 
 class AssetService:
@@ -181,6 +182,80 @@ class AssetService:
         asset = await self.repo.update(session, asset)
         await session.commit()
         return AssetResponse.model_validate(asset)
+
+    async def bulk_import(
+        self, session: AsyncSession, items: list[AssetCreate]
+    ) -> BulkImportResponse:
+        """
+        Import multiple assets at once (partial success model).
+
+        Each asset is processed independently:
+        - Valid assets are created and flushed to the database.
+        - Invalid assets (e.g., duplicates) are collected into an error list.
+
+        We flush (send SQL to DB) after each successful asset to detect
+        database-level errors like unique constraint violations. But we
+        only COMMIT once at the end — so either all successful assets
+        are saved, or none are (if the final commit fails).
+
+        Why partial success instead of all-or-nothing?
+        - Import endpoints commonly receive hundreds of items.
+        - Rejecting everything because one item is bad is a poor UX.
+        - The response tells the client exactly what failed and why,
+          so they can fix and re-submit only the failures.
+        """
+        created_assets: list[AssetResponse] = []
+        errors: list[BulkImportError] = []
+
+        for index, item in enumerate(items):
+            try:
+                now = datetime.now(timezone.utc)
+
+                asset = Asset(
+                    type=item.type.value,
+                    value=item.value,
+                    status=item.status.value,
+                    source=item.source.value,
+                    tags=item.tags,
+                    metadata_=item.metadata,
+                    first_seen=item.first_seen or now,
+                    last_seen=item.last_seen or now,
+                )
+
+                asset = await self.repo.create(session, asset)
+
+                # flush() sends the INSERT to the database WITHOUT committing.
+                # This lets us catch DB errors (like unique violations) per-item.
+                # If we only committed at the end, a single duplicate would
+                # roll back ALL successfully created assets.
+                await session.flush()
+
+                created_assets.append(AssetResponse.model_validate(asset))
+
+            except Exception as e:
+                # Something went wrong with this specific item.
+                # Roll back just this item's changes (expunge it from the session)
+                # and record the error.
+                await session.rollback()
+                errors.append(
+                    BulkImportError(
+                        index=index,
+                        value=item.value,
+                        error=str(e),
+                    )
+                )
+
+        # Commit all successful assets in one transaction.
+        if created_assets:
+            await session.commit()
+
+        return BulkImportResponse(
+            total_received=len(items),
+            successful=len(created_assets),
+            failed=len(errors),
+            errors=errors,
+            assets=created_assets,
+        )
 
     async def delete_asset(self, session: AsyncSession, asset_id: UUID) -> None:
         """

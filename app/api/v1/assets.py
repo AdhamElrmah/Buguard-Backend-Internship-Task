@@ -31,6 +31,7 @@ from app.schemas.asset import (
     AssetResponse,
     AssetUpdate,
 )
+from app.schemas.bulk import BulkAssetCreate, BulkImportResponse
 from app.schemas.filters import AssetFilters
 from app.services.asset_service import asset_service
 
@@ -60,6 +61,32 @@ async def create_asset(
     the operation resulted in a new resource (not just a successful action).
     """
     return await asset_service.create_asset(db, data)
+
+
+@router.post(
+    "/bulk",
+    response_model=BulkImportResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Bulk import assets",
+    description="Import multiple assets at once. Uses partial success model — valid assets are created, invalid ones are reported with errors.",
+)
+async def bulk_import(
+    data: BulkAssetCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    POST /api/v1/assets/bulk
+
+    Why is this route defined BEFORE /{asset_id}?
+    FastAPI matches routes in order. If /bulk came after /{asset_id},
+    FastAPI would try to parse "bulk" as a UUID and return 422.
+
+    Why 200 instead of 201?
+    Bulk import is a mixed operation — some items may succeed and others
+    may fail. 200 "OK" is more appropriate than 201 "Created" when the
+    result is not guaranteed to be all-success.
+    """
+    return await asset_service.bulk_import(db, data.items)
 
 
 @router.get(
