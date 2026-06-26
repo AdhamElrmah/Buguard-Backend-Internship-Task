@@ -31,9 +31,10 @@ Security note:
 import hmac
 from typing import Optional
 
-from fastapi import Header, HTTPException, status
+from fastapi import Header
 
 from app.config import settings
+from app.core.exceptions import AuthenticationException, AuthorizationException
 
 
 async def verify_api_key(
@@ -67,12 +68,9 @@ async def verify_api_key(
     """
     # Case 1: No API key provided at all
     if x_api_key is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=(
-                "Missing API key. Include the 'X-API-Key' header "
-                "in your request to access write operations."
-            ),
+        raise AuthenticationException(
+            "Missing API key. Include the 'X-API-Key' header "
+            "in your request to access write operations."
         )
 
     # Case 2: API key provided but doesn't match
@@ -82,12 +80,9 @@ async def verify_api_key(
         x_api_key.encode("utf-8"),
         settings.API_KEY.encode("utf-8"),
     ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Invalid API key. The provided 'X-API-Key' does not match "
-                "the expected value."
-            ),
+        raise AuthorizationException(
+            "Invalid API key. The provided 'X-API-Key' does not match "
+            "the expected value."
         )
 
     # Case 3: Key is valid — do nothing, let the request proceed.

@@ -8,6 +8,7 @@ from app.api.v1.relationships import (
 )
 from app.config import settings
 from app.core.database import async_session_factory
+from app.core.error_handlers import register_error_handlers
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -16,6 +17,11 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+# --- Register Global Error Handlers ---
+# Converts all exceptions (custom, validation, unhandled) into a
+# consistent JSON response format. Must be called before routes run.
+register_error_handlers(app)
 
 # --- Register Routers ---
 # Each router handles a resource (assets, relationships, etc.)

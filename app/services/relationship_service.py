@@ -10,7 +10,7 @@ Handles:
 
 from uuid import UUID
 
-from fastapi import HTTPException, status
+from app.core.exceptions import ConflictException, NotFoundException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.relationship import Relationship
@@ -55,23 +55,17 @@ class RelationshipService:
         # Step 1: Validate source asset exists
         source = await self.asset_repo.get_by_id(session, data.source_asset_id)
         if not source:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=(
-                    f"Source asset with id '{data.source_asset_id}' not found. "
-                    f"Both assets must exist before creating a relationship."
-                ),
+            raise NotFoundException(
+                f"Source asset with id '{data.source_asset_id}' not found. "
+                f"Both assets must exist before creating a relationship."
             )
 
         # Step 2: Validate target asset exists
         target = await self.asset_repo.get_by_id(session, data.target_asset_id)
         if not target:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=(
-                    f"Target asset with id '{data.target_asset_id}' not found. "
-                    f"Both assets must exist before creating a relationship."
-                ),
+            raise NotFoundException(
+                f"Target asset with id '{data.target_asset_id}' not found. "
+                f"Both assets must exist before creating a relationship."
             )
 
         # Step 3: Check for duplicate relationship
@@ -84,13 +78,10 @@ class RelationshipService:
             data.relationship_type.value,
         )
         if existing:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    f"A '{data.relationship_type.value}' relationship already exists "
-                    f"between source '{data.source_asset_id}' and "
-                    f"target '{data.target_asset_id}'."
-                ),
+            raise ConflictException(
+                f"A '{data.relationship_type.value}' relationship already exists "
+                f"between source '{data.source_asset_id}' and "
+                f"target '{data.target_asset_id}'."
             )
 
         # Step 4: Create the relationship
@@ -117,9 +108,8 @@ class RelationshipService:
         # Validate the asset exists first
         asset = await self.asset_repo.get_by_id(session, asset_id)
         if not asset:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Asset with id '{asset_id}' not found",
+            raise NotFoundException(
+                f"Asset with id '{asset_id}' not found"
             )
 
         relationships = await self.repo.get_by_asset_id(session, asset_id)
@@ -137,9 +127,8 @@ class RelationshipService:
         """
         relationship = await self.repo.get_by_id(session, relationship_id)
         if not relationship:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Relationship with id '{relationship_id}' not found",
+            raise NotFoundException(
+                f"Relationship with id '{relationship_id}' not found"
             )
 
         await self.repo.delete(session, relationship)

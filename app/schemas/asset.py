@@ -179,7 +179,6 @@ class MarkStaleRequest(BaseModel):
     """
     threshold_days: int = Field(
         ...,
-        gt=0,
         description=(
             "Assets with last_seen older than this many days ago "
             "will be marked as stale. Must be a positive integer."

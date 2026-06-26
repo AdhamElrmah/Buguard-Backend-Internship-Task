@@ -14,7 +14,7 @@ It receives typed data (Pydantic schemas) and returns typed data.
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from fastapi import HTTPException, status
+from app.core.exceptions import NotFoundException, ValidationException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.asset import Asset
@@ -164,10 +164,7 @@ class AssetService:
         """
         asset = await self.repo.get_by_id(session, asset_id)
         if not asset:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Asset with id '{asset_id}' not found",
-            )
+            raise NotFoundException(f"Asset with id '{asset_id}' not found")
         return AssetResponse.model_validate(asset)
 
     async def list_assets(
@@ -208,10 +205,7 @@ class AssetService:
         """
         asset = await self.repo.get_by_id(session, asset_id)
         if not asset:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Asset with id '{asset_id}' not found",
-            )
+            raise NotFoundException(f"Asset with id '{asset_id}' not found")
 
         asset.type = data.type.value
         asset.value = data.value
@@ -238,10 +232,7 @@ class AssetService:
         """
         asset = await self.repo.get_by_id(session, asset_id)
         if not asset:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Asset with id '{asset_id}' not found",
-            )
+            raise NotFoundException(f"Asset with id '{asset_id}' not found")
 
         # model_dump(exclude_unset=True) is the key to PATCH semantics.
         # It returns ONLY the fields the client included in the request.
@@ -326,10 +317,7 @@ class AssetService:
         """
         asset = await self.repo.get_by_id(session, asset_id)
         if not asset:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Asset with id '{asset_id}' not found",
-            )
+            raise NotFoundException(f"Asset with id '{asset_id}' not found")
 
         await self.repo.delete(session, asset)
         await session.commit()
@@ -357,6 +345,9 @@ class AssetService:
         - Atomicity: all transitions happen in one transaction.
         - Memory: no need to load thousands of Asset objects into Python.
         """
+        if threshold_days <= 0:
+            raise ValidationException("Threshold days must be a positive integer.")
+
         now = datetime.now(timezone.utc)
         cutoff = now - timedelta(days=threshold_days)
 
