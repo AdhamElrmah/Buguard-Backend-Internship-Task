@@ -11,7 +11,7 @@ The service NEVER touches the HTTP request/response directly.
 It receives typed data (Pydantic schemas) and returns typed data.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -25,6 +25,7 @@ from app.schemas.asset import (
     AssetPatch,
     AssetResponse,
     AssetUpdate,
+    MarkStaleResponse,
 )
 from app.schemas.bulk import BulkImportError, BulkImportResponse
 
@@ -332,6 +333,37 @@ class AssetService:
 
         await self.repo.delete(session, asset)
         await session.commit()
+
+    # ------------------------------------------------------------------
+    # Lifecycle Operations
+    # ------------------------------------------------------------------
+
+    async def mark_stale(
+        self, session: AsyncSession, threshold_days: int
+    ) -> MarkStaleResponse:
+        """
+        Mark all active assets as stale if not seen within threshold_days.
+
+        How it works:
+        1. Calculate a cutoff datetime: now - threshold_days
+           Example: if threshold_days=30 and today is June 26,
+                    cutoff = May 27. Any active asset with last_seen
+                    before May 27 becomes stale.
+        2. Run a single bulk UPDATE query (no per-row loading).
+        3. Return the count of affected assets.
+
+        Why a single SQL UPDATE instead of loading assets one by one?
+        - Performance: one query handles any number of assets.
+        - Atomicity: all transitions happen in one transaction.
+        - Memory: no need to load thousands of Asset objects into Python.
+        """
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(days=threshold_days)
+
+        affected = await self.repo.mark_stale(session, cutoff)
+        await session.commit()
+
+        return MarkStaleResponse(affected=affected)
 
 
 # Singleton instance — import this in the router

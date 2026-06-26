@@ -11,9 +11,10 @@ Every method receives an AsyncSession from the caller (dependency injection),
 so the repository never creates or manages its own sessions.
 """
 
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.asset import Asset
@@ -164,6 +165,43 @@ class AssetRepository:
         """
         await session.delete(asset)
         await session.flush()
+
+    # ------------------------------------------------------------------
+    # Lifecycle Operations
+    # ------------------------------------------------------------------
+
+    async def mark_stale(
+        self, session: AsyncSession, cutoff: datetime
+    ) -> int:
+        """
+        Bulk-update all active assets with last_seen older than cutoff to stale.
+
+        Uses a single UPDATE ... WHERE query instead of loading every asset
+        into Python memory. This is critical for performance — if there are
+        100,000 active assets, loading them all just to set status='stale'
+        would be extremely slow and memory-intensive.
+
+        The SQL equivalent:
+            UPDATE assets
+            SET status = 'stale'
+            WHERE status = 'active'
+              AND last_seen < :cutoff
+
+        Returns the number of affected rows (how many assets transitioned).
+        """
+        stmt = (
+            update(Asset)
+            .where(
+                Asset.status == "active",
+                Asset.last_seen < cutoff,
+            )
+            .values(status="stale")
+        )
+        result = await session.execute(stmt)
+
+        # result.rowcount tells us how many rows were affected by the UPDATE.
+        # This is a standard DBAPI attribute — PostgreSQL always returns it.
+        return result.rowcount
 
 
 # Singleton instance — import this in the service layer

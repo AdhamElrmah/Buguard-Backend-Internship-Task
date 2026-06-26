@@ -30,6 +30,8 @@ from app.schemas.asset import (
     AssetPatch,
     AssetResponse,
     AssetUpdate,
+    MarkStaleRequest,
+    MarkStaleResponse,
 )
 from app.schemas.bulk import BulkAssetCreate, BulkImportResponse
 from app.schemas.filters import AssetFilters
@@ -87,6 +89,37 @@ async def bulk_import(
     result is not guaranteed to be all-success.
     """
     return await asset_service.bulk_import(db, data.items)
+
+
+@router.post(
+    "/mark-stale",
+    response_model=MarkStaleResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Bulk mark assets as stale",
+    description=(
+        "Marks all active assets as stale if their last_seen timestamp "
+        "is older than the specified threshold in days."
+    ),
+)
+async def mark_stale(
+    data: MarkStaleRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    POST /api/v1/assets/mark-stale
+
+    Why is this route defined BEFORE /{asset_id}?
+    Same reason as /bulk — FastAPI matches routes in order.
+    If /mark-stale came after /{asset_id}, FastAPI would try
+    to parse "mark-stale" as a UUID and return 422.
+
+    Example request body:
+        {"threshold_days": 30}
+
+    This would mark all active assets with last_seen older than
+    30 days ago as stale. The response reports how many were affected.
+    """
+    return await asset_service.mark_stale(db, data.threshold_days)
 
 
 @router.get(

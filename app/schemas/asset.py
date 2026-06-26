@@ -156,3 +156,45 @@ class AssetListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# --- Lifecycle Schemas ---
+
+
+class MarkStaleRequest(BaseModel):
+    """
+    Request body for POST /api/v1/assets/mark-stale.
+
+    Marks all 'active' assets as 'stale' if their last_seen timestamp
+    is older than a given threshold (in days).
+
+    Example use case:
+      An operations team runs this weekly with threshold_days=30 to
+      flag assets that haven't been seen by any scanner in the last month.
+
+    Why only 'active' → 'stale' and not 'archived' → 'stale'?
+      Archiving is a deliberate human decision. Automatically changing
+      archived assets would undermine that decision. This endpoint only
+      transitions assets that are currently considered active.
+    """
+    threshold_days: int = Field(
+        ...,
+        gt=0,
+        description=(
+            "Assets with last_seen older than this many days ago "
+            "will be marked as stale. Must be a positive integer."
+        ),
+    )
+
+
+class MarkStaleResponse(BaseModel):
+    """
+    Response body for POST /api/v1/assets/mark-stale.
+
+    Reports how many assets were affected so the caller can
+    log or display the result of the operation.
+    """
+    affected: int = Field(
+        ...,
+        description="Number of assets that were transitioned from active to stale.",
+    )
