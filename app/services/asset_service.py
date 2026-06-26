@@ -5,7 +5,7 @@ This module sits between the router (HTTP) and the repository (database).
 It handles:
 - Converting Pydantic schemas → SQLAlchemy models (and vice versa)
 - Raising appropriate errors (404, 409, etc.)
-- Business rules (deduplication will be added in Milestone 7)
+- Business rules: deduplication, tag merging, metadata merging
 
 The service NEVER touches the HTTP request/response directly.
 It receives typed data (Pydantic schemas) and returns typed data.
@@ -43,31 +43,113 @@ class AssetService:
     def __init__(self):
         self.repo = asset_repository
 
+    # ------------------------------------------------------------------
+    # Deduplication
+    # ------------------------------------------------------------------
+
+    async def _handle_dedup(
+        self, session: AsyncSession, data: AssetCreate
+    ) -> Asset:
+        """
+        Core deduplication logic used by both create_asset() and bulk_import().
+
+        Dedup key: (type, value). If an asset with the same type+value
+        already exists, we MERGE instead of creating a duplicate.
+
+        Merge rules:
+        ┌─────────────┬──────────────────────────────────────────────────┐
+        │ Field       │ Behavior                                        │
+        ├─────────────┼──────────────────────────────────────────────────┤
+        │ first_seen  │ NEVER changed (immutable after creation)        │
+        │ last_seen   │ Always updated to now                           │
+        │ tags        │ Union of old + new (no duplicates)              │
+        │ metadata    │ Shallow merge: {**old, **new}                   │
+        │ status      │ If existing is 'stale' → transition to 'active' │
+        │ source      │ Kept as-is (original discovery source)          │
+        └─────────────┴──────────────────────────────────────────────────┘
+
+        Why shallow merge for metadata?
+        Deep merge is ambiguous — what if both old and new have nested
+        objects with conflicting keys? Shallow merge is predictable:
+        new keys overwrite old keys at the top level, old keys that
+        don't exist in new are preserved.
+
+        Returns the Asset object (either newly created or updated existing).
+        The caller is responsible for committing the transaction.
+        """
+        now = datetime.now(timezone.utc)
+
+        # Step 1: Check if an asset with this (type, value) already exists
+        existing = await self.repo.get_by_type_and_value(
+            session, data.type.value, data.value
+        )
+
+        if existing:
+            # --- MERGE with existing asset ---
+
+            # last_seen: always update to the current time (now) during deduplication
+            existing.last_seen = now
+
+            # tags: union of old + new, removing duplicates
+            # set() automatically handles deduplication
+            # Example: old=["prod", "web"], new=["web", "api"] → ["prod", "web", "api"]
+            merged_tags = list(set(existing.tags or []) | set(data.tags or []))
+            existing.tags = merged_tags
+
+            # metadata: shallow merge — new keys overwrite, old keys preserved
+            # Example: old={"port": 443}, new={"protocol": "https"}
+            #        → {"port": 443, "protocol": "https"}
+            merged_metadata = {**(existing.metadata_ or {}), **(data.metadata or {})}
+            existing.metadata_ = merged_metadata
+
+            # status: re-sighting rule
+            # If the asset was marked 'stale' (not seen for a while) and
+            # we're seeing it again, transition back to 'active'.
+            # IMPORTANT: 'archived' assets are NOT auto-reactivated.
+            # Archiving is a deliberate human decision.
+            if existing.status == "stale":
+                existing.status = "active"
+
+            # first_seen: NEVER change. This is the immutable "birth date"
+            # of the asset. Even if the new data has a different first_seen,
+            # we ignore it.
+
+            # source: keep the original source (how it was first discovered)
+
+            asset = await self.repo.update(session, existing)
+            return asset
+
+        else:
+            # --- CREATE new asset ---
+            asset = Asset(
+                type=data.type.value,
+                value=data.value,
+                status=data.status.value,
+                source=data.source.value,
+                tags=data.tags,
+                metadata_=data.metadata,
+                first_seen=now,
+                last_seen=now,
+            )
+
+            asset = await self.repo.create(session, asset)
+            return asset
+
+    # ------------------------------------------------------------------
+    # CRUD Operations
+    # ------------------------------------------------------------------
+
     async def create_asset(
         self, session: AsyncSession, data: AssetCreate
     ) -> AssetResponse:
         """
-        Create a new asset.
+        Create a new asset, or merge with existing if duplicate.
 
-        Converts the Pydantic schema to a SQLAlchemy model, saves it,
-        and returns the response schema. The 'metadata' field from the
-        API maps to 'metadata_' in the ORM model (because 'metadata'
-        is reserved by SQLAlchemy's Base class).
+        Uses _handle_dedup() to check for existing assets with the same
+        (type, value) pair. If found, merges tags/metadata/timestamps
+        instead of raising a duplicate error.
         """
-        now = datetime.now(timezone.utc)
-
-        asset = Asset(
-            type=data.type.value,
-            value=data.value,
-            status=data.status.value,
-            source=data.source.value,
-            tags=data.tags,
-            metadata_=data.metadata,
-            first_seen=data.first_seen or now,
-            last_seen=data.last_seen or now,
-        )
-
-        asset = await self.repo.create(session, asset)
+        asset = await self._handle_dedup(session, data)
         await session.commit()
         return AssetResponse.model_validate(asset)
 
@@ -136,11 +218,6 @@ class AssetService:
         asset.source = data.source.value
         asset.tags = data.tags
         asset.metadata_ = data.metadata
-        if data.first_seen:
-            asset.first_seen = data.first_seen
-        if data.last_seen:
-            asset.last_seen = data.last_seen
-
         asset = await self.repo.update(session, asset)
         await session.commit()
         return AssetResponse.model_validate(asset)
@@ -189,14 +266,10 @@ class AssetService:
         """
         Import multiple assets at once (partial success model).
 
-        Each asset is processed independently:
-        - Valid assets are created and flushed to the database.
-        - Invalid assets (e.g., duplicates) are collected into an error list.
-
-        We flush (send SQL to DB) after each successful asset to detect
-        database-level errors like unique constraint violations. But we
-        only COMMIT once at the end — so either all successful assets
-        are saved, or none are (if the final commit fails).
+        Each asset is processed independently using _handle_dedup():
+        - If the asset is new → create it.
+        - If it already exists → merge (update tags, metadata, last_seen).
+        - If something fails → record the error, continue with next item.
 
         Why partial success instead of all-or-nothing?
         - Import endpoints commonly receive hundreds of items.
@@ -209,33 +282,19 @@ class AssetService:
 
         for index, item in enumerate(items):
             try:
-                now = datetime.now(timezone.utc)
+                # _handle_dedup creates new assets OR merges with existing ones.
+                # Either way, it returns a valid Asset object.
+                asset = await self._handle_dedup(session, item)
 
-                asset = Asset(
-                    type=item.type.value,
-                    value=item.value,
-                    status=item.status.value,
-                    source=item.source.value,
-                    tags=item.tags,
-                    metadata_=item.metadata,
-                    first_seen=item.first_seen or now,
-                    last_seen=item.last_seen or now,
-                )
-
-                asset = await self.repo.create(session, asset)
-
-                # flush() sends the INSERT to the database WITHOUT committing.
-                # This lets us catch DB errors (like unique violations) per-item.
-                # If we only committed at the end, a single duplicate would
-                # roll back ALL successfully created assets.
+                # flush() sends the INSERT/UPDATE to the database WITHOUT committing.
+                # This lets us catch DB errors per-item.
                 await session.flush()
 
                 created_assets.append(AssetResponse.model_validate(asset))
 
             except Exception as e:
                 # Something went wrong with this specific item.
-                # Roll back just this item's changes (expunge it from the session)
-                # and record the error.
+                # Roll back just this item's changes and record the error.
                 await session.rollback()
                 errors.append(
                     BulkImportError(

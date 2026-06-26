@@ -86,16 +86,6 @@ class AssetCreate(BaseModel):
         default_factory=dict,
         description="Arbitrary key-value data about the asset",
     )
-    first_seen: Optional[datetime] = Field(
-        None,
-        description="When the asset was first observed (defaults to now if not provided)",
-    )
-    last_seen: Optional[datetime] = Field(
-        None,
-        description="When the asset was last observed (defaults to now if not provided)",
-    )
-
-
 class AssetUpdate(BaseModel):
     """
     Schema for full asset replacement (PUT request body).
@@ -110,8 +100,6 @@ class AssetUpdate(BaseModel):
     source: AssetSource = AssetSource.MANUAL
     tags: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
-    first_seen: Optional[datetime] = None
-    last_seen: Optional[datetime] = None
 
 
 class AssetPatch(BaseModel):
@@ -128,8 +116,6 @@ class AssetPatch(BaseModel):
     source: Optional[AssetSource] = None
     tags: Optional[list[str]] = None
     metadata: Optional[dict[str, Any]] = None
-    first_seen: Optional[datetime] = None
-    last_seen: Optional[datetime] = None
 
 
 # --- Response Schemas ---
