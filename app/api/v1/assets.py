@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.security import verify_api_key
 from app.schemas.asset import (
     AssetCreate,
     AssetListResponse,
@@ -49,6 +50,7 @@ router = APIRouter(prefix="/api/v1/assets", tags=["Assets"])
     status_code=status.HTTP_201_CREATED,
     summary="Create a new asset",
     description="Creates a new asset in the system. Requires at minimum a type and value.",
+    dependencies=[Depends(verify_api_key)],
 )
 async def create_asset(
     data: AssetCreate,
@@ -71,6 +73,7 @@ async def create_asset(
     status_code=status.HTTP_200_OK,
     summary="Bulk import assets",
     description="Import multiple assets at once. Uses partial success model — valid assets are created, invalid ones are reported with errors.",
+    dependencies=[Depends(verify_api_key)],
 )
 async def bulk_import(
     data: BulkAssetCreate,
@@ -100,6 +103,7 @@ async def bulk_import(
         "Marks all active assets as stale if their last_seen timestamp "
         "is older than the specified threshold in days."
     ),
+    dependencies=[Depends(verify_api_key)],
 )
 async def mark_stale(
     data: MarkStaleRequest,
@@ -172,6 +176,7 @@ async def list_assets(
     response_model=AssetResponse,
     summary="Full update of an asset",
     description="Replaces all fields of an existing asset. PUT = full replacement.",
+    dependencies=[Depends(verify_api_key)],
 )
 async def update_asset(
     asset_id: UUID,
@@ -194,6 +199,7 @@ async def update_asset(
     response_model=AssetResponse,
     summary="Partial update of an asset",
     description="Updates only the provided fields. PATCH = partial update.",
+    dependencies=[Depends(verify_api_key)],
 )
 async def patch_asset(
     asset_id: UUID,
@@ -214,6 +220,7 @@ async def patch_asset(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete an asset",
     description="Permanently removes an asset and its relationships (cascade delete).",
+    dependencies=[Depends(verify_api_key)],
 )
 async def delete_asset(
     asset_id: UUID,

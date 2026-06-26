@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.security import verify_api_key
 from app.schemas.relationship import (
     RelationshipCreate,
     RelationshipResponse,
@@ -55,6 +56,7 @@ asset_relationship_router = APIRouter(
         "Creates a directed relationship between two assets. "
         "Both assets must exist. Duplicate relationships are rejected with 409."
     ),
+    dependencies=[Depends(verify_api_key)],
 )
 async def create_relationship(
     data: RelationshipCreate,
@@ -108,6 +110,7 @@ async def get_asset_relationships(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a relationship",
     description="Permanently removes a relationship. Returns 404 if not found.",
+    dependencies=[Depends(verify_api_key)],
 )
 async def delete_relationship(
     relationship_id: UUID,
