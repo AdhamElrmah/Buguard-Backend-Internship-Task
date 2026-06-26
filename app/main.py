@@ -2,6 +2,10 @@ from fastapi import FastAPI
 from sqlalchemy import text
 
 from app.api.v1.assets import router as assets_router
+from app.api.v1.relationships import (
+    asset_relationship_router,
+    relationship_router,
+)
 from app.config import settings
 from app.core.database import async_session_factory
 
@@ -17,6 +21,8 @@ app = FastAPI(
 # Each router handles a resource (assets, relationships, etc.)
 # The router's prefix (/api/v1/assets) is defined in the router file itself.
 app.include_router(assets_router)
+app.include_router(relationship_router)
+app.include_router(asset_relationship_router)
 
 
 @app.get("/health", tags=["System"])
