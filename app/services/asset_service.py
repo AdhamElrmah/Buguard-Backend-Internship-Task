@@ -117,6 +117,7 @@ class AssetService:
 
             # source: keep the original source (how it was first discovered)
 
+            self._enrich_certificate_lifecycle(existing)
             asset = await self.repo.update(session, existing)
             return asset
 
@@ -133,6 +134,7 @@ class AssetService:
                 last_seen=now,
             )
 
+            self._enrich_certificate_lifecycle(asset)
             asset = await self.repo.create(session, asset)
             return asset
 
@@ -213,6 +215,7 @@ class AssetService:
         asset.source = data.source.value
         asset.tags = data.tags
         asset.metadata_ = data.metadata
+        self._enrich_certificate_lifecycle(asset)
         asset = await self.repo.update(session, asset)
         await session.commit()
         return AssetResponse.model_validate(asset)
@@ -241,13 +244,17 @@ class AssetService:
         for field, value in update_data.items():
             if field == "metadata":
                 # Map API's 'metadata' to SQLAlchemy's 'metadata_'
-                setattr(asset, "metadata_", value)
+                # For PATCH, we shallow-merge metadata to preserve existing keys.
+                existing_meta = asset.metadata_ or {}
+                incoming_meta = value or {}
+                setattr(asset, "metadata_", {**existing_meta, **incoming_meta})
             elif field in ("type", "status", "source") and value is not None:
                 # Enum fields: store the string value, not the enum object
                 setattr(asset, field, value.value if hasattr(value, "value") else value)
             else:
                 setattr(asset, field, value)
 
+        self._enrich_certificate_lifecycle(asset)
         asset = await self.repo.update(session, asset)
         await session.commit()
         return AssetResponse.model_validate(asset)
@@ -355,6 +362,88 @@ class AssetService:
         await session.commit()
 
         return MarkStaleResponse(affected=affected)
+
+    def _enrich_certificate_lifecycle(self, data) -> None:
+        """
+        If the asset is a certificate, parses its expiration date from metadata
+        and automatically appends/removes 'expired' or 'expiring-soon' tags and
+        sets appropriate metadata boolean fields.
+        """
+        asset_type = getattr(data, "type", None)
+        if hasattr(asset_type, "value"):
+            asset_type = asset_type.value
+
+        if asset_type != "certificate":
+            return
+
+        # Handle metadata access depending on object type (avoids clashing with SQLAlchemy's native metadata property)
+        if isinstance(data, Asset):
+            if data.metadata_ is None:
+                data.metadata_ = {}
+            metadata = data.metadata_
+        else:
+            metadata = getattr(data, "metadata", None)
+            if metadata is None:
+                data.metadata = {}
+                metadata = data.metadata
+        
+        # Check if expires field exists
+        expires_str = metadata.get("expires")
+        if not expires_str:
+            return
+
+        # Attempt to parse expiration date (supports YYYY-MM-DD or ISO formats)
+        expires_date = None
+        for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S.%fZ"):
+            try:
+                expires_date = datetime.strptime(expires_str, fmt).date()
+                break
+            except ValueError:
+                continue
+
+        if not expires_date:
+            # Try splitting date part in case of timestamp with offset
+            try:
+                expires_date = datetime.strptime(expires_str.split("T")[0], "%Y-%m-%d").date()
+            except (ValueError, IndexError):
+                return  # If we can't parse it, skip enrichment
+
+        current_date = datetime.now(timezone.utc).date()
+        thirty_days_later = current_date + timedelta(days=30)
+
+        # Get existing tags
+        tags = getattr(data, "tags", [])
+        if tags is None:
+            tags = []
+        tags_set = set(tags)
+
+        # Determine status
+        if expires_date < current_date:
+            tags_set.add("expired")
+            tags_set.discard("expiring-soon")
+            metadata["expired"] = True
+            metadata["expiring_soon"] = False
+        elif current_date <= expires_date <= thirty_days_later:
+            tags_set.add("expiring-soon")
+            tags_set.discard("expired")
+            metadata["expired"] = False
+            metadata["expiring_soon"] = True
+        else:
+            tags_set.discard("expired")
+            tags_set.discard("expiring-soon")
+            metadata["expired"] = False
+            metadata["expiring_soon"] = False
+
+        # Write back updated tags and metadata
+        if hasattr(data, "tags"):
+            data.tags = list(tags_set)
+        
+        if isinstance(data, Asset):
+            # dict(metadata) forces a new dictionary reference so SQLAlchemy
+            # registers the JSONB column mutation and triggers an UPDATE query.
+            data.metadata_ = dict(metadata)
+        else:
+            data.metadata = dict(metadata)
 
 
 # Singleton instance — import this in the router

@@ -159,3 +159,34 @@ async def test_asset_list_sorting_and_pagination(client, auth_headers):
     assert len(data["items"]) == 2
     assert data["items"][0]["value"] == "asset3.com"
     assert data["items"][1]["value"] == "asset4.com"
+
+
+@pytest.mark.asyncio
+async def test_asset_patch_metadata_merging(client, auth_headers):
+    """
+    Verify that patching an asset's metadata merges new keys with
+    existing keys rather than replacing the entire metadata object.
+    """
+    # 1. Create asset with multi-key metadata
+    create_payload = {
+        "type": "domain",
+        "value": "patch-meta.com",
+        "metadata": {"key1": "value1", "key2": "value2"}
+    }
+    resp = await client.post("/api/v1/assets", json=create_payload, headers=auth_headers)
+    assert resp.status_code == 201
+    asset_id = resp.json()["id"]
+
+    # 2. Patch a single metadata key
+    patch_payload = {
+        "metadata": {"key2": "updated-value", "key3": "new-value"}
+    }
+    resp_patch = await client.patch(f"/api/v1/assets/{asset_id}", json=patch_payload, headers=auth_headers)
+    assert resp_patch.status_code == 200
+    metadata = resp_patch.json()["metadata"]
+
+    # 3. Verify it merged: key1 remains, key2 updated, key3 added
+    assert metadata["key1"] == "value1"
+    assert metadata["key2"] == "updated-value"
+    assert metadata["key3"] == "new-value"
+

@@ -128,3 +128,97 @@ async def test_first_seen_immutability(client, auth_headers):
     resp_patch = await client.patch(f"/api/v1/assets/{asset_id}", json=patch_payload, headers=auth_headers)
     assert resp_patch.status_code == 200
     assert resp_patch.json()["first_seen"] == original_first_seen
+
+
+@pytest.mark.asyncio
+async def test_certificate_lifecycle_date_tagging(client, auth_headers):
+    """
+    Verify automatic tagging and metadata enrichment for certificates:
+    - expired: when expires date is in the past
+    - expiring-soon: when expires date is within 30 days
+    - valid/other: when expires date is far in the future
+    """
+    from datetime import date, timedelta
+
+    # Current UTC date
+    today = date.today()
+
+    # 1. Expired Certificate
+    past_date = (today - timedelta(days=5)).strftime("%Y-%m-%d")
+    payload_expired = {
+        "type": "certificate",
+        "value": "CN=expired.com",
+        "metadata": {"issuer": "Let's Encrypt", "expires": past_date}
+    }
+    resp_expired = await client.post("/api/v1/assets", json=payload_expired, headers=auth_headers)
+    assert resp_expired.status_code == 201
+    data = resp_expired.json()
+    assert "expired" in data["tags"]
+    assert "expiring-soon" not in data["tags"]
+    assert data["metadata"]["expired"] is True
+    assert data["metadata"]["expiring_soon"] is False
+
+    # 2. Expiring Soon Certificate (10 days in future)
+    soon_date = (today + timedelta(days=10)).strftime("%Y-%m-%d")
+    payload_soon = {
+        "type": "certificate",
+        "value": "CN=expiring-soon.com",
+        "metadata": {"issuer": "Let's Encrypt", "expires": soon_date}
+    }
+    resp = await client.post("/api/v1/assets", json=payload_soon, headers=auth_headers)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert "expiring-soon" in data["tags"]
+    assert "expired" not in data["tags"]
+    assert data["metadata"]["expired"] is False
+    assert data["metadata"]["expiring_soon"] is True
+
+    # 3. Valid Certificate (60 days in future)
+    future_date = (today + timedelta(days=60)).strftime("%Y-%m-%d")
+    payload_valid = {
+        "type": "certificate",
+        "value": "CN=valid.com",
+        "metadata": {"issuer": "Let's Encrypt", "expires": future_date}
+    }
+    resp = await client.post("/api/v1/assets", json=payload_valid, headers=auth_headers)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert "expired" not in data["tags"]
+    assert "expiring-soon" not in data["tags"]
+    assert data["metadata"]["expired"] is False
+    assert data["metadata"]["expiring_soon"] is False
+
+    # 4. Patch update expired certificate to a future date (making it valid)
+    expired_id = resp_expired.json()["id"]
+    patch_payload = {
+        "metadata": {"expires": future_date}
+    }
+    resp_patch = await client.patch(f"/api/v1/assets/{expired_id}", json=patch_payload, headers=auth_headers)
+    assert resp_patch.status_code == 200
+    patched_data = resp_patch.json()
+
+    # The expired tag should be removed, and expired/expiring_soon flags should be false
+    assert "expired" not in patched_data["tags"]
+    assert "expiring-soon" not in patched_data["tags"]
+    assert patched_data["metadata"]["expired"] is False
+    assert patched_data["metadata"]["expiring_soon"] is False
+
+    # 5. Re-import (deduplication) of the valid certificate back to expiring-soon
+    # It should update the date, add expiring-soon tag, and remove expired/valid states cleanly
+    reimport_payload = {
+        "type": "certificate",
+        "value": "CN=expired.com",
+        "metadata": {"issuer": "Let's Encrypt", "expires": soon_date}
+    }
+    resp_reimport = await client.post("/api/v1/assets", json=reimport_payload, headers=auth_headers)
+    assert resp_reimport.status_code == 201
+    reimported_data = resp_reimport.json()
+
+    # The tag "expiring-soon" should be added, and "expired" must NOT be in the merged tags!
+    assert "expiring-soon" in reimported_data["tags"]
+    assert "expired" not in reimported_data["tags"]
+    assert reimported_data["metadata"]["expired"] is False
+    assert reimported_data["metadata"]["expiring_soon"] is True
+
+
+
