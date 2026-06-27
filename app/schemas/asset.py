@@ -30,6 +30,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class AssetType(str, Enum):
     """Valid asset types in the DarkAtlas platform."""
+
     DOMAIN = "domain"
     SUBDOMAIN = "subdomain"
     IP_ADDRESS = "ip_address"
@@ -46,6 +47,7 @@ class AssetStatus(str, Enum):
     stale     → not seen for a while, may no longer exist
     archived  → manually marked inactive, kept for historical records
     """
+
     ACTIVE = "active"
     STALE = "stale"
     ARCHIVED = "archived"
@@ -53,6 +55,7 @@ class AssetStatus(str, Enum):
 
 class AssetSource(str, Enum):
     """How the asset was discovered or added to the system."""
+
     MANUAL = "manual"
     SCAN = "scan"
     IMPORT = "import"
@@ -69,6 +72,7 @@ class AssetCreate(BaseModel):
     This keeps the API easy to use: a minimal valid request is just:
       {"type": "domain", "value": "example.com"}
     """
+
     type: AssetType
     value: str = Field(
         ...,
@@ -86,6 +90,8 @@ class AssetCreate(BaseModel):
         default_factory=dict,
         description="Arbitrary key-value data about the asset",
     )
+
+
 class AssetUpdate(BaseModel):
     """
     Schema for full asset replacement (PUT request body).
@@ -94,6 +100,7 @@ class AssetUpdate(BaseModel):
     'replace the entire resource'. If the client omits a field,
     it would be set to its default — which is the correct PUT behavior.
     """
+
     type: AssetType
     value: str = Field(..., min_length=1, max_length=2048)
     status: AssetStatus = AssetStatus.ACTIVE
@@ -110,6 +117,7 @@ class AssetPatch(BaseModel):
     will be updated; everything else stays unchanged.
     This is the key difference from AssetUpdate (PUT).
     """
+
     type: Optional[AssetType] = None
     value: Optional[str] = Field(None, min_length=1, max_length=2048)
     status: Optional[AssetStatus] = None
@@ -152,6 +160,7 @@ class AssetListResponse(BaseModel):
     Includes total count so the client can calculate total pages:
       total_pages = ceil(total / page_size)
     """
+
     items: list[AssetResponse]
     total: int
     page: int
@@ -177,6 +186,7 @@ class MarkStaleRequest(BaseModel):
       archived assets would undermine that decision. This endpoint only
       transitions assets that are currently considered active.
     """
+
     threshold_days: int = Field(
         ...,
         description=(
@@ -193,6 +203,7 @@ class MarkStaleResponse(BaseModel):
     Reports how many assets were affected so the caller can
     log or display the result of the operation.
     """
+
     affected: int = Field(
         ...,
         description="Number of assets that were transitioned from active to stale.",

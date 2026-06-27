@@ -1,6 +1,7 @@
 import pytest
 from uuid import uuid4
 
+
 @pytest.mark.asyncio
 async def test_asset_crud_flow(client, auth_headers):
     """
@@ -13,9 +14,11 @@ async def test_asset_crud_flow(client, auth_headers):
         "status": "active",
         "source": "manual",
         "tags": ["prod", "web"],
-        "metadata": {"owner": "buguard"}
+        "metadata": {"owner": "buguard"},
     }
-    response = await client.post("/api/v1/assets", json=create_payload, headers=auth_headers)
+    response = await client.post(
+        "/api/v1/assets", json=create_payload, headers=auth_headers
+    )
     assert response.status_code == 201
     data = response.json()
     assert data["type"] == "domain"
@@ -43,9 +46,11 @@ async def test_asset_crud_flow(client, auth_headers):
         "status": "stale",
         "source": "scan",
         "tags": ["blog"],
-        "metadata": {"updated": True}
+        "metadata": {"updated": True},
     }
-    response = await client.put(f"/api/v1/assets/{asset_id}", json=update_payload, headers=auth_headers)
+    response = await client.put(
+        f"/api/v1/assets/{asset_id}", json=update_payload, headers=auth_headers
+    )
     assert response.status_code == 200
     data = response.json()
     assert data["type"] == "subdomain"
@@ -55,16 +60,15 @@ async def test_asset_crud_flow(client, auth_headers):
     assert data["metadata"] == {"updated": True}
 
     # 5. Patch Asset (PATCH - partial replacement)
-    patch_payload = {
-        "status": "active",
-        "tags": ["blog", "marketing"]
-    }
-    response = await client.patch(f"/api/v1/assets/{asset_id}", json=patch_payload, headers=auth_headers)
+    patch_payload = {"status": "active", "tags": ["blog", "marketing"]}
+    response = await client.patch(
+        f"/api/v1/assets/{asset_id}", json=patch_payload, headers=auth_headers
+    )
     assert response.status_code == 200
     data = response.json()
     assert data["type"] == "subdomain"  # Unchanged
-    assert data["status"] == "active"   # Updated
-    assert data["tags"] == ["blog", "marketing"] # Updated
+    assert data["status"] == "active"  # Updated
+    assert data["tags"] == ["blog", "marketing"]  # Updated
 
     # 6. Delete Asset
     response = await client.delete(f"/api/v1/assets/{asset_id}", headers=auth_headers)
@@ -74,6 +78,7 @@ async def test_asset_crud_flow(client, auth_headers):
     response = await client.get(f"/api/v1/assets/{asset_id}")
     assert response.status_code == 404
 
+
 @pytest.mark.asyncio
 async def test_asset_list_filtering(client, auth_headers):
     """
@@ -81,10 +86,30 @@ async def test_asset_list_filtering(client, auth_headers):
     """
     # Create test assets
     assets = [
-        {"type": "domain", "value": "google.com", "status": "active", "tags": ["search", "corp"]},
-        {"type": "domain", "value": "youtube.com", "status": "active", "tags": ["video", "corp"]},
-        {"type": "ip_address", "value": "8.8.8.8", "status": "stale", "tags": ["dns", "google"]},
-        {"type": "service", "value": "ssh://1.1.1.1", "status": "archived", "tags": ["infra"]}
+        {
+            "type": "domain",
+            "value": "google.com",
+            "status": "active",
+            "tags": ["search", "corp"],
+        },
+        {
+            "type": "domain",
+            "value": "youtube.com",
+            "status": "active",
+            "tags": ["video", "corp"],
+        },
+        {
+            "type": "ip_address",
+            "value": "8.8.8.8",
+            "status": "stale",
+            "tags": ["dns", "google"],
+        },
+        {
+            "type": "service",
+            "value": "ssh://1.1.1.1",
+            "status": "archived",
+            "tags": ["infra"],
+        },
     ]
     for asset in assets:
         resp = await client.post("/api/v1/assets", json=asset, headers=auth_headers)
@@ -118,6 +143,7 @@ async def test_asset_list_filtering(client, auth_headers):
     assert data["total"] == 1
     assert data["items"][0]["value"] == "youtube.com"
 
+
 @pytest.mark.asyncio
 async def test_asset_list_sorting_and_pagination(client, auth_headers):
     """
@@ -135,17 +161,31 @@ async def test_asset_list_sorting_and_pagination(client, auth_headers):
     data = response.json()
     assert data["total"] == 5
     values = [item["value"] for item in data["items"]]
-    assert values == ["asset1.com", "asset2.com", "asset3.com", "asset4.com", "asset5.com"]
+    assert values == [
+        "asset1.com",
+        "asset2.com",
+        "asset3.com",
+        "asset4.com",
+        "asset5.com",
+    ]
 
     # Test sorting by value descending
     response = await client.get("/api/v1/assets?sort_by=value&sort_order=desc")
     assert response.status_code == 200
     data = response.json()
     values = [item["value"] for item in data["items"]]
-    assert values == ["asset5.com", "asset4.com", "asset3.com", "asset2.com", "asset1.com"]
+    assert values == [
+        "asset5.com",
+        "asset4.com",
+        "asset3.com",
+        "asset2.com",
+        "asset1.com",
+    ]
 
     # Test pagination page=1, page_size=2
-    response = await client.get("/api/v1/assets?sort_by=value&sort_order=asc&page=1&page_size=2")
+    response = await client.get(
+        "/api/v1/assets?sort_by=value&sort_order=asc&page=1&page_size=2"
+    )
     assert response.status_code == 200
     data = response.json()
     assert len(data["items"]) == 2
@@ -153,7 +193,9 @@ async def test_asset_list_sorting_and_pagination(client, auth_headers):
     assert data["items"][1]["value"] == "asset2.com"
 
     # Test pagination page=2, page_size=2
-    response = await client.get("/api/v1/assets?sort_by=value&sort_order=asc&page=2&page_size=2")
+    response = await client.get(
+        "/api/v1/assets?sort_by=value&sort_order=asc&page=2&page_size=2"
+    )
     assert response.status_code == 200
     data = response.json()
     assert len(data["items"]) == 2
@@ -171,17 +213,19 @@ async def test_asset_patch_metadata_merging(client, auth_headers):
     create_payload = {
         "type": "domain",
         "value": "patch-meta.com",
-        "metadata": {"key1": "value1", "key2": "value2"}
+        "metadata": {"key1": "value1", "key2": "value2"},
     }
-    resp = await client.post("/api/v1/assets", json=create_payload, headers=auth_headers)
+    resp = await client.post(
+        "/api/v1/assets", json=create_payload, headers=auth_headers
+    )
     assert resp.status_code == 201
     asset_id = resp.json()["id"]
 
     # 2. Patch a single metadata key
-    patch_payload = {
-        "metadata": {"key2": "updated-value", "key3": "new-value"}
-    }
-    resp_patch = await client.patch(f"/api/v1/assets/{asset_id}", json=patch_payload, headers=auth_headers)
+    patch_payload = {"metadata": {"key2": "updated-value", "key3": "new-value"}}
+    resp_patch = await client.patch(
+        f"/api/v1/assets/{asset_id}", json=patch_payload, headers=auth_headers
+    )
     assert resp_patch.status_code == 200
     metadata = resp_patch.json()["metadata"]
 
@@ -189,4 +233,3 @@ async def test_asset_patch_metadata_merging(client, auth_headers):
     assert metadata["key1"] == "value1"
     assert metadata["key2"] == "updated-value"
     assert metadata["key3"] == "new-value"
-

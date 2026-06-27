@@ -111,14 +111,10 @@ class RelationshipService:
         # Validate the asset exists first
         asset = await self.asset_repo.get_by_id(session, asset_id)
         if not asset:
-            raise NotFoundException(
-                f"Asset with id '{asset_id}' not found"
-            )
+            raise NotFoundException(f"Asset with id '{asset_id}' not found")
 
         relationships = await self.repo.get_by_asset_id(session, asset_id)
-        return [
-            RelationshipResponse.model_validate(r) for r in relationships
-        ]
+        return [RelationshipResponse.model_validate(r) for r in relationships]
 
     async def get_asset_graph(
         self, session: AsyncSession, asset_id: UUID
@@ -170,15 +166,13 @@ class RelationshipService:
                         relationship_id=r.id,
                         relationship_type=r.relationship_type,
                         direction=direction,
-                        asset=AssetResponse.model_validate(other_asset)
+                        asset=AssetResponse.model_validate(other_asset),
                     )
                 )
 
         return AssetGraphResponse(
-            asset=AssetResponse.model_validate(asset),
-            relationships=related_list
+            asset=AssetResponse.model_validate(asset), relationships=related_list
         )
-
 
     async def delete_relationship(
         self, session: AsyncSession, relationship_id: UUID

@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 class SortOrder(str, Enum):
     """Sort direction for query results."""
+
     ASC = "asc"
     DESC = "desc"
 
@@ -31,6 +32,7 @@ class SortField(str, Enum):
     2. Performance issues (sorting on non-indexed columns)
     3. Information leakage (exposing internal column names)
     """
+
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
     FIRST_SEEN = "first_seen"

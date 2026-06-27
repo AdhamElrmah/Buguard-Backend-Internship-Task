@@ -9,7 +9,9 @@ from app.core.database import Base, get_db
 from app.main import app
 
 # Test database URL (uses darkatlas_test database)
-TEST_DATABASE_URL = "postgresql+asyncpg://postgres:postgres123@localhost:5433/darkatlas_test"
+TEST_DATABASE_URL = (
+    "postgresql+asyncpg://postgres:postgres123@localhost:5433/darkatlas_test"
+)
 
 # Create async engine for test database
 test_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
@@ -18,6 +20,7 @@ test_session_factory = async_sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False,
 )
+
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -28,6 +31,7 @@ def event_loop():
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
+
 
 @pytest.fixture(scope="session", autouse=True)
 async def setup_test_db():
@@ -43,13 +47,17 @@ async def setup_test_db():
         await conn.run_sync(Base.metadata.drop_all)
     await test_engine.dispose()
 
+
 @pytest.fixture(autouse=True)
 async def clean_db():
     """
     Truncate all tables before each test to ensure test isolation.
     """
     async with test_engine.begin() as conn:
-        await conn.execute(text("TRUNCATE TABLE relationships, assets RESTART IDENTITY CASCADE;"))
+        await conn.execute(
+            text("TRUNCATE TABLE relationships, assets RESTART IDENTITY CASCADE;")
+        )
+
 
 @pytest.fixture
 async def db():
@@ -59,11 +67,13 @@ async def db():
     async with test_session_factory() as session:
         yield session
 
+
 @pytest.fixture
 async def client(db):
     """
     Provide an AsyncClient for testing API endpoints with dependency overrides.
     """
+
     async def override_get_db():
         yield db
 
@@ -72,6 +82,7 @@ async def client(db):
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
     app.dependency_overrides.clear()
+
 
 @pytest.fixture
 def auth_headers():

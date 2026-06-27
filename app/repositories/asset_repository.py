@@ -12,12 +12,16 @@ so the repository never creates or manages its own sessions.
 """
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.asset import Asset
+
+if TYPE_CHECKING:
+    from app.schemas.filters import AssetFilters
 
 
 class AssetRepository:
@@ -84,8 +88,6 @@ class AssetRepository:
         Returns (assets, total_count). The total reflects the filtered
         count (not the entire table), so pagination math is correct.
         """
-        from app.schemas.filters import AssetFilters  # avoid circular import
-
         # Start with a base query that selects all assets
         data_query = select(Asset)
         count_query = select(func.count()).select_from(Asset)
@@ -106,22 +108,14 @@ class AssetRepository:
                 # PostgreSQL array containment: tags @> ARRAY['prod']
                 # This checks if the tags column contains the given value.
                 # The GIN index (idx_assets_tags) makes this fast.
-                data_query = data_query.where(
-                    Asset.tags.contains([filters.tag])
-                )
-                count_query = count_query.where(
-                    Asset.tags.contains([filters.tag])
-                )
+                data_query = data_query.where(Asset.tags.contains([filters.tag]))
+                count_query = count_query.where(Asset.tags.contains([filters.tag]))
 
             if filters.value:
                 # ILIKE = case-insensitive LIKE
                 # f"%{value}%" = substring match (contains)
-                data_query = data_query.where(
-                    Asset.value.ilike(f"%{filters.value}%")
-                )
-                count_query = count_query.where(
-                    Asset.value.ilike(f"%{filters.value}%")
-                )
+                data_query = data_query.where(Asset.value.ilike(f"%{filters.value}%"))
+                count_query = count_query.where(Asset.value.ilike(f"%{filters.value}%"))
 
             # --- Apply sorting ---
             # getattr(Asset, "created_at") returns the SQLAlchemy column object.
@@ -182,9 +176,7 @@ class AssetRepository:
         result = await session.execute(query)
         return list(result.scalars().all())
 
-    async def mark_stale(
-        self, session: AsyncSession, cutoff: datetime
-    ) -> int:
+    async def mark_stale(self, session: AsyncSession, cutoff: datetime) -> int:
         """
         Bulk-update all active assets with last_seen older than cutoff to stale.
 

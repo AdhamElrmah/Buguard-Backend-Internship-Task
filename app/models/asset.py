@@ -109,7 +109,6 @@ class Asset(Base):
         # Deduplication key: no two assets can have the same (type, value) pair.
         # This is how we detect duplicates during import.
         UniqueConstraint("type", "value", name="uq_assets_type_value"),
-
         # GIN index on tags for fast array containment queries.
         # Without this, `WHERE tags @> ARRAY['prod']` would require a full table scan.
         Index("idx_assets_tags", "tags", postgresql_using="gin"),

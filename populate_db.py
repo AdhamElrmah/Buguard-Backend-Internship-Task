@@ -1,7 +1,7 @@
 """
 Database Population Script
 
-This script clears the database (using TRUNCATE CASCADE) and populates it with a rich set 
+This script clears the database (using TRUNCATE CASCADE) and populates it with a rich set
 of mock assets and relationships via the FastAPI application's API endpoints.
 
 This allows you to immediately test all API operations (CRUD, filtering, sorting, pagination,
@@ -25,8 +25,8 @@ load_dotenv()
 
 # We import the ASGI app so we can run requests in-process without needing
 # the server to be running separately.
-from app.main import app
-from app.core.database import engine
+from app.main import app  # noqa: E402
+from app.core.database import engine  # noqa: E402
 
 # Rich mock assets to import
 MOCK_ASSETS = [
@@ -37,7 +37,7 @@ MOCK_ASSETS = [
         "status": "active",
         "source": "scan",
         "tags": ["root", "scope-in"],
-        "metadata": {"registrar": "Namecheap", "dnssec": "disabled"}
+        "metadata": {"registrar": "Namecheap", "dnssec": "disabled"},
     },
     {
         "type": "subdomain",
@@ -45,7 +45,7 @@ MOCK_ASSETS = [
         "status": "active",
         "source": "scan",
         "tags": ["prod", "api"],
-        "metadata": {"stage": "production", "public": True, "provider": "AWS"}
+        "metadata": {"stage": "production", "public": True, "provider": "AWS"},
     },
     {
         "type": "subdomain",
@@ -53,7 +53,7 @@ MOCK_ASSETS = [
         "status": "active",
         "source": "scan",
         "tags": ["staging"],
-        "metadata": {"stage": "staging", "public": False, "provider": "AWS"}
+        "metadata": {"stage": "staging", "public": False, "provider": "AWS"},
     },
     {
         "type": "subdomain",
@@ -61,7 +61,7 @@ MOCK_ASSETS = [
         "status": "active",
         "source": "scan",
         "tags": ["dev"],
-        "metadata": {"stage": "development", "public": False, "provider": "Local"}
+        "metadata": {"stage": "development", "public": False, "provider": "Local"},
     },
     {
         "type": "subdomain",
@@ -69,7 +69,7 @@ MOCK_ASSETS = [
         "status": "stale",
         "source": "manual",
         "tags": ["legacy"],
-        "metadata": {"stage": "deprecated", "last_active": "2025-12-01"}
+        "metadata": {"stage": "deprecated", "last_active": "2025-12-01"},
     },
     {
         "type": "subdomain",
@@ -77,7 +77,7 @@ MOCK_ASSETS = [
         "status": "archived",
         "source": "manual",
         "tags": ["decommissioned"],
-        "metadata": {"reason": "dns-removed", "decom_date": "2026-01-15"}
+        "metadata": {"reason": "dns-removed", "decom_date": "2026-01-15"},
     },
     # IP Addresses
     {
@@ -86,7 +86,7 @@ MOCK_ASSETS = [
         "status": "active",
         "source": "scan",
         "tags": ["prod", "cdn"],
-        "metadata": {"country": "US", "asn": 15133, "provider": "Edgecast"}
+        "metadata": {"country": "US", "asn": 15133, "provider": "Edgecast"},
     },
     {
         "type": "ip_address",
@@ -94,7 +94,7 @@ MOCK_ASSETS = [
         "status": "active",
         "source": "manual",
         "tags": ["internal", "staging"],
-        "metadata": {"subnet": "office", "restricted": True}
+        "metadata": {"subnet": "office", "restricted": True},
     },
     # Services
     {
@@ -103,7 +103,7 @@ MOCK_ASSETS = [
         "status": "active",
         "source": "scan",
         "tags": ["ssl", "prod"],
-        "metadata": {"banner": "nginx/1.24.0", "tls": "TLSv1.3", "ports": [443]}
+        "metadata": {"banner": "nginx/1.24.0", "tls": "TLSv1.3", "ports": [443]},
     },
     {
         "type": "service",
@@ -111,7 +111,7 @@ MOCK_ASSETS = [
         "status": "stale",
         "source": "scan",
         "tags": ["http"],
-        "metadata": {"banner": "nginx/1.24.0", "ports": [80]}
+        "metadata": {"banner": "nginx/1.24.0", "ports": [80]},
     },
     {
         "type": "service",
@@ -119,7 +119,7 @@ MOCK_ASSETS = [
         "status": "active",
         "source": "scan",
         "tags": ["staging", "http"],
-        "metadata": {"banner": "Apache/2.4.58 (Unix)", "ports": [8080]}
+        "metadata": {"banner": "Apache/2.4.58 (Unix)", "ports": [8080]},
     },
     # Certificates
     {
@@ -128,7 +128,11 @@ MOCK_ASSETS = [
         "status": "active",
         "source": "scan",
         "tags": ["prod", "ssl"],
-        "metadata": {"issuer": "Let's Encrypt", "expires": "2025-01-02", "expired": True}
+        "metadata": {
+            "issuer": "Let's Encrypt",
+            "expires": "2025-01-02",
+            "expired": True,
+        },
     },
     {
         "type": "certificate",
@@ -136,7 +140,11 @@ MOCK_ASSETS = [
         "status": "active",
         "source": "scan",
         "tags": ["staging", "ssl"],
-        "metadata": {"issuer": "Let's Encrypt", "expires": "2026-12-31", "expired": False}
+        "metadata": {
+            "issuer": "Let's Encrypt",
+            "expires": "2026-12-31",
+            "expired": False,
+        },
     },
     # Technologies
     {
@@ -145,7 +153,7 @@ MOCK_ASSETS = [
         "status": "active",
         "source": "scan",
         "tags": ["web-server", "oss"],
-        "metadata": {"version": "1.24.0", "cve_count": 0}
+        "metadata": {"version": "1.24.0", "cve_count": 0},
     },
     {
         "type": "technology",
@@ -153,8 +161,8 @@ MOCK_ASSETS = [
         "status": "active",
         "source": "scan",
         "tags": ["web-server", "oss"],
-        "metadata": {"version": "2.4.58", "cve_count": 2}
-    }
+        "metadata": {"version": "2.4.58", "cve_count": 2},
+    },
 ]
 
 # Directed relationships to establish
@@ -174,10 +182,16 @@ MOCK_RELATIONSHIPS = [
     ("service", "8080/tcp", "runs_on", "ip_address", "192.168.1.100"),
     # Certificates to Subdomains
     ("certificate", "CN=api.example.com", "secures", "subdomain", "api.example.com"),
-    ("certificate", "CN=staging.example.com", "secures", "subdomain", "staging.example.com"),
+    (
+        "certificate",
+        "CN=staging.example.com",
+        "secures",
+        "subdomain",
+        "staging.example.com",
+    ),
     # Technologies to Subdomains
     ("technology", "nginx", "connected_to", "subdomain", "api.example.com"),
-    ("technology", "apache", "connected_to", "subdomain", "staging.example.com")
+    ("technology", "apache", "connected_to", "subdomain", "staging.example.com"),
 ]
 
 
@@ -200,19 +214,25 @@ async def populate():
 
     # We use httpx AsyncClient in-process to hit the ASGI application directly
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://localhost:8000") as client:
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost:8000"
+    ) as client:
         # 3. Bulk import assets
         print("\nImporting assets...")
         bulk_payload = {"items": MOCK_ASSETS}
-        response = await client.post("/api/v1/assets/bulk", json=bulk_payload, headers=headers)
-        
+        response = await client.post(
+            "/api/v1/assets/bulk", json=bulk_payload, headers=headers
+        )
+
         if response.status_code != 200:
             print(f"Error during bulk import: {response.status_code} - {response.text}")
             return
 
         import_data = response.json()
-        print(f"Assets import summary: total={import_data['total_received']}, "
-              f"successful={import_data['successful']}, failed={import_data['failed']}")
+        print(
+            f"Assets import summary: total={import_data['total_received']}, "
+            f"successful={import_data['successful']}, failed={import_data['failed']}"
+        )
 
         # Map each (type, value) to its generated database UUID
         asset_map: Dict[tuple, UUID] = {}
@@ -223,30 +243,40 @@ async def populate():
         # 4. Create relationships
         print("\nCreating directed relationships...")
         created_relations_count = 0
-        
+
         for src_type, src_val, rel_type, tgt_type, tgt_val in MOCK_RELATIONSHIPS:
             src_id = asset_map.get((src_type, src_val))
             tgt_id = asset_map.get((tgt_type, tgt_val))
 
             if not src_id or not tgt_id:
-                print(f"Skipping relationship {src_val} --[{rel_type}]--> {tgt_val} (asset missing)")
+                print(
+                    f"Skipping relationship {src_val} --[{rel_type}]--> {tgt_val} (asset missing)"
+                )
                 continue
 
             rel_payload = {
                 "source_asset_id": src_id,
                 "target_asset_id": tgt_id,
-                "relationship_type": rel_type
+                "relationship_type": rel_type,
             }
 
-            rel_resp = await client.post("/api/v1/relationships", json=rel_payload, headers=headers)
+            rel_resp = await client.post(
+                "/api/v1/relationships", json=rel_payload, headers=headers
+            )
             if rel_resp.status_code == 201:
                 created_relations_count += 1
             else:
-                print(f"Failed to create relationship: {src_val} -> {tgt_val}. Status: {rel_resp.status_code}")
+                print(
+                    f"Failed to create relationship: {src_val} -> {tgt_val}. Status: {rel_resp.status_code}"
+                )
 
-        print(f"Relationships created successfully: {created_relations_count}/{len(MOCK_RELATIONSHIPS)}")
+        print(
+            f"Relationships created successfully: {created_relations_count}/{len(MOCK_RELATIONSHIPS)}"
+        )
         print("\n=== Populating Database Complete ===")
-        print("You can now open http://localhost:8000/docs to explore and query the mock dataset!")
+        print(
+            "You can now open http://localhost:8000/docs to explore and query the mock dataset!"
+        )
 
 
 if __name__ == "__main__":

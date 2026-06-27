@@ -125,7 +125,6 @@ async def get_asset_graph(
     return await relationship_service.get_asset_graph(db, asset_id)
 
 
-
 @relationship_router.delete(
     "/{relationship_id}",
     status_code=status.HTTP_204_NO_CONTENT,

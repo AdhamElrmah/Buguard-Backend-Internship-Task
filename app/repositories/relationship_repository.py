@@ -90,9 +90,7 @@ class RelationshipRepository:
         result = await session.execute(query)
         return result.scalar_one_or_none()
 
-    async def delete(
-        self, session: AsyncSession, relationship: Relationship
-    ) -> None:
+    async def delete(self, session: AsyncSession, relationship: Relationship) -> None:
         """
         Hard-delete a relationship from the database.
 

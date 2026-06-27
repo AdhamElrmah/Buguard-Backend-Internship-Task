@@ -95,7 +95,6 @@ class Relationship(Base):
             "relationship_type",
             name="uq_rel_source_target_type",
         ),
-
         # B-tree indexes for fast lookups by either side of the edge.
         # "Find all relationships FROM asset X" → uses idx_rel_source.
         # "Find all relationships TO asset X"   → uses idx_rel_target.

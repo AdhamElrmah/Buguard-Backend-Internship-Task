@@ -1,9 +1,10 @@
 import pytest
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime
 from unittest.mock import patch
 
 from app.services.asset_service import asset_service
+
 
 @pytest.mark.asyncio
 async def test_bulk_import_partial_success(client, auth_headers):
@@ -15,21 +16,27 @@ async def test_bulk_import_partial_success(client, auth_headers):
     payload = {
         "items": [
             {"type": "domain", "value": "valid1.com", "tags": ["bulk"]},
-            {"type": "domain", "value": "fail_me.com", "tags": ["bulk"]}, # Will fail via mock
+            {
+                "type": "domain",
+                "value": "fail_me.com",
+                "tags": ["bulk"],
+            },  # Will fail via mock
             {"type": "ip_address", "value": "8.8.8.8", "tags": ["bulk"]},
         ]
     }
 
     # Mock _handle_dedup to raise an error for "fail_me.com"
     original_handle_dedup = asset_service._handle_dedup
-    
+
     async def mock_handle_dedup(session, data):
         if data.value == "fail_me.com":
             raise Exception("Simulated database/runtime constraint error")
         return await original_handle_dedup(session, data)
 
     with patch.object(asset_service, "_handle_dedup", side_effect=mock_handle_dedup):
-        response = await client.post("/api/v1/assets/bulk", json=payload, headers=auth_headers)
+        response = await client.post(
+            "/api/v1/assets/bulk", json=payload, headers=auth_headers
+        )
         assert response.status_code == 200
         data = response.json()
 
@@ -50,6 +57,7 @@ async def test_bulk_import_partial_success(client, auth_headers):
         assert assets[0]["value"] == "valid1.com"
         assert assets[1]["value"] == "8.8.8.8"
 
+
 @pytest.mark.asyncio
 async def test_bulk_import_deduplication(client, auth_headers):
     """
@@ -66,9 +74,11 @@ async def test_bulk_import_deduplication(client, auth_headers):
         "value": "dedup.com",
         "status": "stale",
         "tags": ["initial", "shared"],
-        "metadata": {"version": 1, "environment": "prod"}
+        "metadata": {"version": 1, "environment": "prod"},
     }
-    resp1 = await client.post("/api/v1/assets", json=initial_payload, headers=auth_headers)
+    resp1 = await client.post(
+        "/api/v1/assets", json=initial_payload, headers=auth_headers
+    )
     assert resp1.status_code == 201
     asset1 = resp1.json()
     first_seen_1 = asset1["first_seen"]
@@ -82,9 +92,11 @@ async def test_bulk_import_deduplication(client, auth_headers):
         "type": "domain",
         "value": "dedup.com",
         "tags": ["shared", "new-tag"],
-        "metadata": {"version": 2, "scanner": "shodan"}
+        "metadata": {"version": 2, "scanner": "shodan"},
     }
-    resp2 = await client.post("/api/v1/assets", json=second_payload, headers=auth_headers)
+    resp2 = await client.post(
+        "/api/v1/assets", json=second_payload, headers=auth_headers
+    )
     assert resp2.status_code == 201
     asset2 = resp2.json()
 
@@ -97,9 +109,9 @@ async def test_bulk_import_deduplication(client, auth_headers):
 
     # metadata shallow merged
     assert asset2["metadata"] == {
-        "version": 2,          # Overwritten by new value
+        "version": 2,  # Overwritten by new value
         "environment": "prod",  # Preserved from old value
-        "scanner": "shodan"     # Added from new value
+        "scanner": "shodan",  # Added from new value
     }
 
     # first_seen is immutable and remains unchanged

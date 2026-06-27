@@ -31,6 +31,7 @@ class BulkAssetCreate(BaseModel):
         ]
     }
     """
+
     items: list[AssetCreate] = Field(
         ...,
         min_length=1,
@@ -46,11 +47,13 @@ class BulkImportError(BaseModel):
     'index' tells the client which item in their list failed,
     so they can fix and re-submit just the problematic items.
     """
+
     index: int = Field(
         ..., description="0-based index of the failed item in the request list"
     )
     value: str = Field(
-        ..., description="The 'value' field of the failed item (for easy identification)"
+        ...,
+        description="The 'value' field of the failed item (for easy identification)",
     )
     error: str = Field(
         ..., description="Human-readable error message explaining why it failed"
@@ -78,15 +81,12 @@ class BulkImportResponse(BaseModel):
         "assets": [ ...8 created assets... ]
     }
     """
+
     total_received: int = Field(
         ..., description="Total number of items received in the request"
     )
-    successful: int = Field(
-        ..., description="Number of assets successfully created"
-    )
-    failed: int = Field(
-        ..., description="Number of assets that failed to import"
-    )
+    successful: int = Field(..., description="Number of assets successfully created")
+    failed: int = Field(..., description="Number of assets that failed to import")
     errors: list[BulkImportError] = Field(
         default_factory=list,
         description="Details about each failed item",

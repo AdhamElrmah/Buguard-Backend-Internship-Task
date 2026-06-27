@@ -12,7 +12,11 @@ It receives typed data (Pydantic schemas) and returns typed data.
 """
 
 from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING
 from uuid import UUID
+
+if TYPE_CHECKING:
+    from app.schemas.filters import AssetFilters
 
 from app.core.exceptions import NotFoundException, ValidationException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,9 +52,7 @@ class AssetService:
     # Deduplication
     # ------------------------------------------------------------------
 
-    async def _handle_dedup(
-        self, session: AsyncSession, data: AssetCreate
-    ) -> Asset:
+    async def _handle_dedup(self, session: AsyncSession, data: AssetCreate) -> Asset:
         """
         Core deduplication logic used by both create_asset() and bulk_import().
 
@@ -181,8 +183,6 @@ class AssetService:
         tag, value, sort_by, sort_order, page, page_size). The service
         extracts pagination values and passes everything to the repository.
         """
-        from app.schemas.filters import AssetFilters  # avoid circular import
-
         skip = (filters.page - 1) * filters.page_size
         assets, total = await self.repo.get_all(
             session, skip=skip, limit=filters.page_size, filters=filters
@@ -386,7 +386,7 @@ class AssetService:
             if metadata is None:
                 data.metadata = {}
                 metadata = data.metadata
-        
+
         # Check if expires field exists
         expires_str = metadata.get("expires")
         if not expires_str:
@@ -394,7 +394,12 @@ class AssetService:
 
         # Attempt to parse expiration date (supports YYYY-MM-DD or ISO formats)
         expires_date = None
-        for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S.%fZ"):
+        for fmt in (
+            "%Y-%m-%d",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%dT%H:%M:%SZ",
+            "%Y-%m-%dT%H:%M:%S.%fZ",
+        ):
             try:
                 expires_date = datetime.strptime(expires_str, fmt).date()
                 break
@@ -404,7 +409,9 @@ class AssetService:
         if not expires_date:
             # Try splitting date part in case of timestamp with offset
             try:
-                expires_date = datetime.strptime(expires_str.split("T")[0], "%Y-%m-%d").date()
+                expires_date = datetime.strptime(
+                    expires_str.split("T")[0], "%Y-%m-%d"
+                ).date()
             except (ValueError, IndexError):
                 return  # If we can't parse it, skip enrichment
 
@@ -437,7 +444,7 @@ class AssetService:
         # Write back updated tags and metadata
         if hasattr(data, "tags"):
             data.tags = list(tags_set)
-        
+
         if isinstance(data, Asset):
             # dict(metadata) forces a new dictionary reference so SQLAlchemy
             # registers the JSONB column mutation and triggers an UPDATE query.

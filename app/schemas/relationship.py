@@ -36,6 +36,7 @@ class RelationshipType(str, Enum):
         service "app:8080"          --[depends_on]--> service "db:5432"
         domain "example.com"        --[connected_to]> domain "partner.com"
     """
+
     BELONGS_TO = "belongs_to"
     RUNS_ON = "runs_on"
     SECURES = "secures"
@@ -58,6 +59,7 @@ class RelationshipCreate(BaseModel):
     by the model_validator below — an asset cannot have a relationship
     with itself.
     """
+
     source_asset_id: UUID = Field(
         ...,
         description="UUID of the source asset (the 'from' side of the edge).",
@@ -114,9 +116,10 @@ class RelatedAsset(BaseModel):
     Represents an asset connected to the queried asset,
     along with the connecting relationship details.
     """
+
     relationship_id: UUID
     relationship_type: RelationshipType
-    direction: str # "outgoing" or "incoming"
+    direction: str  # "outgoing" or "incoming"
     asset: AssetResponse
 
 
@@ -124,6 +127,6 @@ class AssetGraphResponse(BaseModel):
     """
     Response schema for returning an asset along with all its related assets (the graph around it).
     """
+
     asset: AssetResponse
     relationships: list[RelatedAsset]
-

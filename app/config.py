@@ -29,7 +29,9 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5433/darkatlas"
+    DATABASE_URL: str = (
+        "postgresql+asyncpg://postgres:postgres@localhost:5433/darkatlas"
+    )
 
     # Authentication
     API_KEY: str = "changeme"

@@ -186,4 +186,43 @@ Tests run against a dedicated test database (`darkatlas_test`).
    ```bash
    venv\Scripts\pytest
    ```
-   All 16 tests covering CRUD, bulk imports, lifecycle management, and relationships will run sequentially.
+   All 19 tests covering CRUD, bulk imports, lifecycle management, certificate date checking, and relationships will run sequentially.
+
+---
+
+## Code Quality & CI Pipeline
+
+We use **Ruff** for lightning-fast linting and code formatting, and **GitHub Actions** for our Continuous Integration (CI) pipeline.
+
+### Running Code Checks Locally
+
+You can run Ruff checks locally to ensure your code matches the project guidelines before committing:
+
+1. **Run Linter Checks**:
+   ```bash
+   venv\Scripts\ruff check .
+   ```
+2. **Run Code Formatting Check**:
+   ```bash
+   venv\Scripts\ruff format --check .
+   ```
+3. **Automatically Format Code**:
+   ```bash
+   venv\Scripts\ruff format .
+   ```
+
+### Continuous Integration (CI)
+
+The CI pipeline is configured in [.github/workflows/ci.yml](file:///.github/workflows/ci.yml). On every push or pull request to the `main` branch, it automatically:
+1. Spawns a PostgreSQL service container on port `5433`.
+2. Sets up Python 3.12.
+3. Installs project dependencies.
+4. Checks linting and formatting using Ruff.
+5. Runs the entire Pytest suite against the test database.
+
+#### Testing the CI pipeline locally:
+You can use the local CI simulator **[act](https://github.com/nektos/act)** to run the GitHub Actions workflow in a local Docker container:
+```bash
+act -j lint-and-test
+```
+
