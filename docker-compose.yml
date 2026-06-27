@@ -3,6 +3,7 @@ version: "3.8"
 services:
   db:
     image: postgres:15-alpine
+    platform: linux/amd64
     container_name: darkatlas_db
     environment:
       POSTGRES_USER: postgres
@@ -21,6 +22,7 @@ services:
 
   api:
     build: .
+    platform: linux/amd64
     container_name: darkatlas_api
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres123@db:5432/darkatlas

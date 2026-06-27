@@ -1,5 +1,5 @@
-# Use an official lightweight Python image
-FROM python:3.12-slim
+# Use an official lightweight Python Alpine image
+FROM python:3.12-alpine
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -9,18 +9,23 @@ ENV PORT=8000
 # Set working directory inside the container
 WORKDIR /app
 
-# Install system dependencies (netcat-openbsd for checking DB connection, curl for health check)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install runtime dependencies (netcat-openbsd for checking DB connection, curl for health check)
+RUN apk add --no-cache \
     netcat-openbsd \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+    curl
 
 # Copy requirements file first to leverage Docker cache
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+# Install build dependencies, compile python requirements, and clean up build tools
+RUN apk add --no-cache --virtual .build-deps \
+    build-base \
+    python3-dev \
+    musl-dev \
+    libffi-dev \
+    && pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt \
+    && apk del .build-deps
 
 # Copy application files, migrations configuration, and script
 COPY app /app/app
