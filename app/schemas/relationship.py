@@ -15,6 +15,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.schemas.asset import AssetResponse
+
 
 # --- Enums ---
 
@@ -105,3 +107,23 @@ class RelationshipResponse(BaseModel):
     target_asset_id: UUID
     relationship_type: RelationshipType
     created_at: datetime
+
+
+class RelatedAsset(BaseModel):
+    """
+    Represents an asset connected to the queried asset,
+    along with the connecting relationship details.
+    """
+    relationship_id: UUID
+    relationship_type: RelationshipType
+    direction: str # "outgoing" or "incoming"
+    asset: AssetResponse
+
+
+class AssetGraphResponse(BaseModel):
+    """
+    Response schema for returning an asset along with all its related assets (the graph around it).
+    """
+    asset: AssetResponse
+    relationships: list[RelatedAsset]
+

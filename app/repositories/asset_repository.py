@@ -170,6 +170,18 @@ class AssetRepository:
     # Lifecycle Operations
     # ------------------------------------------------------------------
 
+    async def get_by_ids(
+        self, session: AsyncSession, asset_ids: list[UUID]
+    ) -> list[Asset]:
+        """
+        Fetch multiple assets by their IDs.
+        """
+        if not asset_ids:
+            return []
+        query = select(Asset).where(Asset.id.in_(asset_ids))
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
     async def mark_stale(
         self, session: AsyncSession, cutoff: datetime
     ) -> int:

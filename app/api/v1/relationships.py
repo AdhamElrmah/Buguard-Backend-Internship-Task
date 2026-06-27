@@ -25,6 +25,7 @@ from app.core.security import verify_api_key
 from app.schemas.relationship import (
     RelationshipCreate,
     RelationshipResponse,
+    AssetGraphResponse,
 )
 from app.services.relationship_service import relationship_service
 
@@ -103,6 +104,26 @@ async def get_asset_relationships(
     This gives a complete picture of how the asset connects to others.
     """
     return await relationship_service.get_asset_relationships(db, asset_id)
+
+
+@asset_relationship_router.get(
+    "/{asset_id}/graph",
+    response_model=AssetGraphResponse,
+    summary="Get the graph around an asset",
+    description=(
+        "Returns the queried asset details together with all its related assets "
+        "(both incoming and outgoing relationships)."
+    ),
+)
+async def get_asset_graph(
+    asset_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    GET /api/v1/assets/{asset_id}/graph
+    """
+    return await relationship_service.get_asset_graph(db, asset_id)
+
 
 
 @relationship_router.delete(

@@ -19,7 +19,10 @@ from app.repositories.relationship_repository import relationship_repository
 from app.schemas.relationship import (
     RelationshipCreate,
     RelationshipResponse,
+    AssetGraphResponse,
+    RelatedAsset,
 )
+from app.schemas.asset import AssetResponse
 
 
 class RelationshipService:
@@ -116,6 +119,66 @@ class RelationshipService:
         return [
             RelationshipResponse.model_validate(r) for r in relationships
         ]
+
+    async def get_asset_graph(
+        self, session: AsyncSession, asset_id: UUID
+    ) -> AssetGraphResponse:
+        """
+        Fetch an asset together with its related assets (the graph around X).
+
+        Returns the asset details plus a list of related assets including direction,
+        connecting relationship type, and relationship ID.
+        """
+        # Step 1: Validate asset exists
+        asset = await self.asset_repo.get_by_id(session, asset_id)
+        if not asset:
+            raise NotFoundException(f"Asset with id '{asset_id}' not found")
+
+        # Step 2: Fetch all relationships involving X
+        relationships = await self.repo.get_by_asset_id(session, asset_id)
+
+        # Step 3: Fetch related assets in bulk to avoid N+1 query problem
+        related_ids = []
+        for r in relationships:
+            if r.source_asset_id == asset_id:
+                related_ids.append(r.target_asset_id)
+            else:
+                related_ids.append(r.source_asset_id)
+
+        # Deduplicate IDs
+        related_ids = list(set(related_ids))
+
+        # Load related assets
+        db_related_assets = await self.asset_repo.get_by_ids(session, related_ids)
+        related_assets_map = {a.id: a for a in db_related_assets}
+
+        # Step 4: Map relationships to RelatedAsset schema
+        related_list = []
+        for r in relationships:
+            # Determine direction and other node ID
+            if r.source_asset_id == asset_id:
+                direction = "outgoing"
+                other_id = r.target_asset_id
+            else:
+                direction = "incoming"
+                other_id = r.source_asset_id
+
+            other_asset = related_assets_map.get(other_id)
+            if other_asset:
+                related_list.append(
+                    RelatedAsset(
+                        relationship_id=r.id,
+                        relationship_type=r.relationship_type,
+                        direction=direction,
+                        asset=AssetResponse.model_validate(other_asset)
+                    )
+                )
+
+        return AssetGraphResponse(
+            asset=AssetResponse.model_validate(asset),
+            relationships=related_list
+        )
+
 
     async def delete_relationship(
         self, session: AsyncSession, relationship_id: UUID

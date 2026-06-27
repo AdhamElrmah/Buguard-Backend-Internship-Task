@@ -135,3 +135,52 @@ async def test_relationship_cascade_delete(client, auth_headers):
     # Verify C's relationship list is now empty (because B -> C cascade deleted)
     resp = await client.get(f"/api/v1/assets/{id_c}/relationships")
     assert len(resp.json()) == 0
+
+
+@pytest.mark.asyncio
+async def test_asset_graph_retrieval(client, auth_headers):
+    """
+    Verify that GET /api/v1/assets/{id}/graph returns the asset
+    along with its related assets and relationship directions.
+    """
+    # Create source, middle, and target assets: A -> B -> C
+    resp_a = await client.post("/api/v1/assets", json={"type": "domain", "value": "a.com"}, headers=auth_headers)
+    resp_b = await client.post("/api/v1/assets", json={"type": "subdomain", "value": "b.a.com"}, headers=auth_headers)
+    resp_c = await client.post("/api/v1/assets", json={"type": "ip_address", "value": "1.1.1.1"}, headers=auth_headers)
+    id_a = resp_a.json()["id"]
+    id_b = resp_b.json()["id"]
+    id_c = resp_c.json()["id"]
+
+    # Link A -> B and B -> C
+    await client.post("/api/v1/relationships", json={"source_asset_id": id_a, "target_asset_id": id_b, "relationship_type": "belongs_to"}, headers=auth_headers)
+    await client.post("/api/v1/relationships", json={"source_asset_id": id_b, "target_asset_id": id_c, "relationship_type": "resolves_to"}, headers=auth_headers)
+
+    # Get graph for Middle Asset B
+    response = await client.get(f"/api/v1/assets/{id_b}/graph")
+    assert response.status_code == 200
+    data = response.json()
+
+    # Asset under query should be B
+    assert data["asset"]["id"] == id_b
+    assert data["asset"]["value"] == "b.a.com"
+
+    # Relationships list should contain both connections (incoming A->B and outgoing B->C)
+    relationships = data["relationships"]
+    assert len(relationships) == 2
+
+    # Verify connection from A (incoming to B)
+    incoming = next(r for r in relationships if r["direction"] == "incoming")
+    assert incoming["relationship_type"] == "belongs_to"
+    assert incoming["asset"]["id"] == id_a
+    assert incoming["asset"]["value"] == "a.com"
+
+    # Verify connection to C (outgoing from B)
+    outgoing = next(r for r in relationships if r["direction"] == "outgoing")
+    assert outgoing["relationship_type"] == "resolves_to"
+    assert outgoing["asset"]["id"] == id_c
+    assert outgoing["asset"]["value"] == "1.1.1.1"
+
+    # Verify 404 for non-existent asset graph
+    response = await client.get(f"/api/v1/assets/{uuid4()}/graph")
+    assert response.status_code == 404
+

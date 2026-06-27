@@ -79,6 +79,28 @@ Here is how the platform resolves key architecture and data design challenges:
 
 ---
 
+## API Endpoints Overview
+
+The API exposes the following endpoints (all write operations require the `X-API-Key` header):
+
+### Assets
+* `POST /api/v1/assets` - Create a new asset (deduplication runs on collision).
+* `POST /api/v1/assets/bulk` - Bulk import assets with a partial success model (failures reported with list indices).
+* `POST /api/v1/assets/mark-stale` - Bulk mark active assets as stale based on a `threshold_days` filter.
+* `GET /api/v1/assets` - Paginated asset query list with optional filters (`type`, `status`, `tag`, `value` substring) and sorting (`sort_by`, `sort_order`).
+* `GET /api/v1/assets/{id}` - Fetch details of a single asset.
+* `PUT /api/v1/assets/{id}` - Replace all fields of an asset.
+* `PATCH /api/v1/assets/{id}` - Partially update specific fields of an asset.
+* `DELETE /api/v1/assets/{id}` - Hard-delete an asset and cascade-delete its relationships.
+
+### Relationships & Graph
+* `POST /api/v1/relationships` - Create a directed relationship (e.g. `belongs_to`, `resolves_to`) between two existing assets.
+* `GET /api/v1/assets/{id}/relationships` - List all relationships where the asset is either the source or target.
+* `GET /api/v1/assets/{id}/graph` - Retrieve the **graph around an asset**: returns the queried asset details together with all its related asset nodes, including relationship type and direction (`incoming` / `outgoing`).
+* `DELETE /api/v1/relationships/{id}` - Remove a relationship.
+
+---
+
 ## Assumptions Made
 1. **Hard Deletes**: Relationships are mapped with `ON DELETE CASCADE`. Deleting an asset automatically removes all its relationships to prevent foreign key orphans.
 2. **Offset Pagination**: For simple integration and paging in internal dashboards, offset-based pagination (`page` + `page_size`) was selected.
